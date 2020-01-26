@@ -12,7 +12,7 @@ namespace WindowsFormsApp1
 {
     public partial class Form1 : Form
     {
-        Fingerprint fp = new Fingerprint();
+        Fingerprint fp = new Fingerprint("COM4", 9600);
 
         public Form1()
         {
@@ -21,9 +21,9 @@ namespace WindowsFormsApp1
 
         private void button1_Click(object sender, EventArgs e)
         {
-            Bitmap img = fp.write(textBox1.Text);
+            fp.send_command("PassWord");
 
-            pictureBox1.Image = img;
+            byte[] data = fp.read();
         }
     }
 }

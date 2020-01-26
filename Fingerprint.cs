@@ -4,23 +4,30 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO.Ports;
-using System.Drawing;
-using System.IO;
+
 
 namespace WindowsFormsApp1
 {
     class Fingerprint
     {
         SerialPort port;
+
         byte   package_identifier;
-        byte[] package = new byte[512];
-        byte[] package_len = new byte[2];
-        byte[] checksum = new byte[2];
+        byte[] header       = new byte[] { 0xEF, 0x01 };
+        byte[] adder        = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF };
+        byte[] package      = new byte[720]; // array to hold entire package to be sent to module
+        byte[] package_len  = new byte[2];
+        byte[] checksum     = new byte[2];
         byte[] package_content = new byte[512];
 
-        public Fingerprint()
+        const byte FINGERPRINT_SEND_CMD = 0x1;
+        const byte FINGERPRINT_SEND_DATA = 0x2;
+        const byte FINGERPRINT_SEND_ACKNOWLEDGMENT = 0x7;
+        const byte FINGERPRINT_END_DATA = 0x8;
+
+        public Fingerprint(string portName, int baudRate)
         {
-            port = new SerialPort("COM4", 9600);
+            port = new SerialPort(portName, baudRate);
             port.Open();
 
             this.set_header();
@@ -29,16 +36,12 @@ namespace WindowsFormsApp1
 
         private void set_header()
         {
-            package[0] = 0xEF;
-            package[1] = 0x01;
+            Buffer.BlockCopy(this.header, 0, this.package, 0, this.header.Length);
         }
 
         private void set_adder()
         {
-            package[2] = 0xff;
-            package[3] = 0xff;
-            package[4] = 0xff;
-            package[5] = 0xff;
+            Buffer.BlockCopy(this.adder, 0, this.package, this.package.Length-1, adder.Length);
         }
 
         private void set_package_length(int packet_len, int checksum_len)
@@ -91,52 +94,45 @@ namespace WindowsFormsApp1
 
         public void send_command(string cmd)
         {
-            this.init(0x1, cmd);
+            this.init(FINGERPRINT_SEND_CMD, cmd);
         }
 
         public void send_data(string data)
         {
-            this.init(0x2, data);
+            this.init(FINGERPRINT_SEND_DATA, data);
         }
 
         public void send_acknowledgement(string acknowledgement)
         {
-            this.init(0x7, acknowledgement);
+            this.init(FINGERPRINT_SEND_ACKNOWLEDGMENT, acknowledgement);
         }
 
-        public void end(string data = "")
+        public void end_data(string data = "")
         {
-            this.init(0x8, data);
+            this.init(FINGERPRINT_END_DATA, data);
         }
 
-
-        public Bitmap write(string text = "")
+        public byte[] read()
         {
-            String s = "ReadSysPara";
             byte[] buff = new byte[32];
-
-            port.Write(s);
 
             port.Read(buff, 0, 32);
 
-            string result = Encoding.UTF8.GetString(buff, 0, buff.Length);
-
-            return ByteToImage(buff);
+            return buff;
         }
 
-        public static Bitmap ByteToImage(byte[] blob)
+        public string readString()
         {
-            MemoryStream mStream = new MemoryStream();
-            byte[] pData = blob;
-            mStream.Write(pData, 0, Convert.ToInt32(pData.Length));
-            Bitmap bm = new Bitmap(mStream, false);
-            mStream.Dispose();
-            return bm;
+            byte[] buff = this.read();
+            string result = Encoding.UTF8.GetString(buff, 0, buff.Length);
+
+            return result;
         }
 
         ~Fingerprint()
         {
             port.Close();
+            Array.Clear(package, 0, package.Length);
         }
     }
 }
